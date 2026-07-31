@@ -1,5 +1,5 @@
 import "./Chat.css";
-import React, { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect } from "react";
 import { MyContext } from "./MyContext";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
@@ -10,26 +10,31 @@ function Chat() {
     const [latestReply, setLatestReply] = useState(null);
 
     useEffect(() => {
-        if(reply === null) {
-            setLatestReply(null); //prevchat load
-            return;
+
+    if (reply == null) {
+        setLatestReply(null);
+        return;
+    }
+
+    if (!prevChats?.length > 0) return;
+
+    const words = reply.split(" ");
+
+    let index = 0;
+
+    const interval = setInterval(() => {
+        setLatestReply(words.slice(0, index + 1).join(" "));
+        index++;
+
+        if (index >= words.length) {
+            clearInterval(interval);
         }
 
-        if(!prevChats?.length) return;
+    }, 40);
 
-        const content = reply.split(" "); //individual words
+    return () => clearInterval(interval);
 
-        let idx = 0;
-        const interval = setInterval(() => {
-            setLatestReply(content.slice(0, idx+1).join(" "));
-
-            idx++;
-            if(idx >= content.length) clearInterval(interval);
-        }, 40);
-
-        return () => clearInterval(interval);
-
-    }, [prevChats, reply])
+}, [reply, prevChats]);
 
     return (
         <>
@@ -57,7 +62,7 @@ function Chat() {
                                 </div>
                                 ) : (
                                     <div className="gptDiv" key={"typing"} >
-                                     <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{latestReply}</ReactMarkdown>
+                                    <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{latestReply}</ReactMarkdown>
                                 </div>
                                 )
 
