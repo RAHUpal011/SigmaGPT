@@ -35,6 +35,10 @@ const connectDB = async() =>{
     }
 }
 
+app.get("/", (req, res) => {
+  res.send("SigmaGPT Backend is running 🚀");
+});
+
 app.post("/test", async (req, res) => {
 
     const options = {
