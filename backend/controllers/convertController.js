@@ -1,188 +1,570 @@
 import fs from "fs";
 import path from "path";
-import sharp from "sharp";
-import libre from "libreoffice-convert";
-import { PDFDocument } from "pdf-lib";
-import { Document, Packer, Paragraph } from "docx";
+import os from "os";
 import { promisify } from "util";
+import { execFile } from "child_process";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { createRequire } from "module";
+import { spawn } from "child_process";
 
-// Promise Wrapper
-libre.convertAsync =
-    libre.convertAsync ||
-    ((input, ext, filter) => {
-        return new Promise((resolve, reject) => {
-            libre.convert(input, ext, filter, (err, done) => {
-                if (err) reject(err);
-                else resolve(done);
-            });
-        });
+const require = createRequire(import.meta.url);
+
+import sharp from "sharp";
+// import libre from "libreoffice-convert";
+import { Document, Packer, Paragraph, TextRun } from "docx";
+
+
+const execFileAsync = promisify(execFile);
+
+/*
+==================================================
+CREATE UPLOAD DIRECTORY
+==================================================
+*/
+
+const uploadDir = path.resolve(process.cwd(), "uploads");
+
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, {
+        recursive: true
     });
+}
 
-/* ==========================================
-   IMAGE -> JPG
-========================================== */
+
+const sofficePath =
+    "C:\\Program Files\\LibreOffice\\program\\soffice.exe";
+
+
+
 
 export const imageToJpg = async (req, res) => {
+    let outputPath = null;
     try {
         if (!req.file) {
             return res.status(400).json({
                 success: false,
-                message: "No image uploaded",
+                message: "No image uploaded"
             });
         }
+        const inputPath = path.resolve(req.file.path);
+        const outputName =`${Date.now()}.jpg`;
 
-        const inputPath = req.file.path;
-        const outputName = `${Date.now()}.jpg`;
-        const outputPath = path.join("uploads", outputName);
+        outputPath = path.join(uploadDir,outputName);
+
         await sharp(inputPath)
             .jpeg({
-                quality: 100,
+                quality: 100
             })
             .toFile(outputPath);
-
-        fs.unlinkSync(inputPath);
-
-        return res.download(outputPath, outputName, (err) => {
-            if (!err && fs.existsSync(outputPath)) {
-                fs.unlinkSync(outputPath);
+        if (fs.existsSync(inputPath)) {
+            fs.unlinkSync(inputPath);
+        }
+        return res.download(
+            outputPath,
+            outputName,
+            (err) => {
+                if (
+                    !err &&
+                    fs.existsSync(outputPath)
+                ) {
+                    fs.unlinkSync(outputPath);
+                }
             }
-        });
+        );
     } catch (err) {
-        console.log(err);
-
-        res.status(500).json({
+        console.error("IMAGE TO JPG ERROR:",err);
+        if (
+            outputPath &&
+            fs.existsSync(outputPath)
+        ) {
+            fs.unlinkSync(outputPath);
+        }
+        return res.status(500).json({
             success: false,
-            message: err.message,
+            message: err.message
         });
     }
 };
 
-/* ==========================================
-   WORD -> PDF
-========================================== */
+
+
 
 export const wordToPdf = async (req, res) => {
+
+    let tempDir = null;
+    let finalPath = null;
+
     try {
+
+        console.log("========== WORD TO PDF ==========");
+
+        console.log(
+            "Word file:",
+            req.file
+        );
+
+        // 1. Check file
+
+        if (!req.file) {
+
+            return res.status(400).json({
+                success: false,
+                message: "No Word file uploaded"
+            });
+
+        }
+
+        // 2. Check LibreOffice
+
+        if (!fs.existsSync(sofficePath)) {
+
+            return res.status(500).json({
+
+                success: false,
+
+                message:
+                    `LibreOffice not found at ${sofficePath}`
+
+            });
+
+        }
+
+        // 3. Check extension
+
+        const extension =
+            path.extname(
+                req.file.originalname
+            ).toLowerCase();
+
+        if (
+            extension !== ".docx" &&
+            extension !== ".doc"
+        ) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message:
+                    "Only .doc and .docx files are supported"
+
+            });
+
+        }
+
+        // 4. Create temporary directory
+
+        tempDir = fs.mkdtempSync(
+
+            path.join(
+                os.tmpdir(),
+                "sigmagpt-"
+            )
+
+        );
+
+        // 5. Give file correct extension
+
+        const inputPath =
+            path.join(
+                tempDir,
+                `input${extension}`
+            );
+
+        fs.copyFileSync(
+            req.file.path,
+            inputPath
+        );
+
+        // 6. Output directory
+
+        const outputDir =
+            path.join(
+                tempDir,
+                "output"
+            );
+
+        fs.mkdirSync(
+            outputDir,
+            {
+                recursive: true
+            }
+        );
+
+        console.log(
+            "Input:",
+            inputPath
+        );
+
+        console.log(
+            "Output:",
+            outputDir
+        );
+
+        // 7. Run LibreOffice
+
+        const result =
+            await execFileAsync(
+
+                sofficePath,
+
+                [
+                    "--headless",
+                    "--convert-to",
+                    "pdf",
+                    "--outdir",
+                    outputDir,
+                    inputPath
+                ],
+
+                {
+                    windowsHide: true
+                }
+
+            );
+
+        console.log(
+            "LibreOffice stdout:",
+            result.stdout
+        );
+
+        console.log(
+            "LibreOffice stderr:",
+            result.stderr
+        );
+
+        // 8. Find generated PDF
+
+        const pdfPath =
+            path.join(
+                outputDir,
+                "input.pdf"
+            );
+
+        if (!fs.existsSync(pdfPath)) {
+
+            throw new Error(
+                "LibreOffice did not generate the PDF."
+            );
+
+        }
+
+        // 9. Create final file
+
+        const outputName =
+            `converted-${Date.now()}.pdf`;
+
+        finalPath =
+            path.join(
+                uploadDir,
+                outputName
+            );
+
+        fs.copyFileSync(
+            pdfPath,
+            finalPath
+        );
+
+        // 10. Delete uploaded Word file
+
+        if (
+            fs.existsSync(req.file.path)
+        ) {
+
+            fs.unlinkSync(
+                req.file.path
+            );
+
+        }
+
+        // 11. Send PDF
+
+        return res.download(
+
+            finalPath,
+
+            outputName,
+
+            (err) => {
+
+                if (err) {
+
+                    console.error(
+                        "DOWNLOAD ERROR:",
+                        err
+                    );
+
+                }
+
+                if (
+                    finalPath &&
+                    fs.existsSync(finalPath)
+                ) {
+
+                    fs.unlinkSync(
+                        finalPath
+                    );
+
+                }
+
+            }
+
+        );
+
+    } catch (err) {
+
+        console.error(
+            "WORD TO PDF ERROR:",
+            err
+        );
+
+        if (
+            req.file?.path &&
+            fs.existsSync(req.file.path)
+        ) {
+
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch {}
+
+        }
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "Word to PDF conversion failed",
+
+            error:
+                err.message
+
+        });
+
+    } finally {
+
+        if (
+            tempDir &&
+            fs.existsSync(tempDir)
+        ) {
+
+            try {
+
+                fs.rmSync(
+                    tempDir,
+                    {
+                        recursive: true,
+                        force: true
+                    }
+                );
+
+            } catch {}
+
+        }
+
+    }
+};
+/*
+==================================================
+PDF -> WORD
+==================================================
+*/
+export const pdfToWord = async (req, res) => {
+
+    let outputPath = null;
+
+    try {
+
+        console.log("========== PDF TO WORD ==========");
+
         if (!req.file) {
             return res.status(400).json({
                 success: false,
-                message: "No Word file uploaded",
+                message: "No PDF uploaded"
             });
         }
 
-        const wordBuffer = fs.readFileSync(req.file.path);
+        const extension =
+            path.extname(req.file.originalname).toLowerCase();
 
-        const pdfBuffer = await libre.convertAsync(
-            wordBuffer,
-            ".pdf",
-            undefined
-        );
+        if (extension !== ".pdf") {
 
-        const pdfName = `${Date.now()}.pdf`;
-        const pdfPath = path.join("uploads", pdfName);
-        fs.writeFileSync(pdfPath, pdfBuffer);
-        fs.unlinkSync(req.file.path);
-        return res.download(pdfPath, pdfName, (err) => {
-            if (!err && fs.existsSync(pdfPath)) {
-                fs.unlinkSync(pdfPath);
+            if (fs.existsSync(req.file.path)) {
+                fs.unlinkSync(req.file.path);
             }
-        });
-    } catch (err) {
-        console.log(err);
 
-        res.status(500).json({
-            success: false,
-            message: err.message,
-        });
-    }
-};
+            return res.status(400).json({
+                success: false,
+                message: "Only PDF files are allowed"
+            });
+        }
 
-/* ==========================================
-   PDF -> WORD (Demo Only)
-========================================== */
+        const outputName =
+            `converted-${Date.now()}.docx`;
 
-// export const pdfToWord = async (req, res) => {
-//     try {
-//         if (!req.file) {
-//             return res.status(400).json({
-//                 success: false,
-//                 message: "No PDF uploaded",
-//             });
-//         }
-//         const pdfBytes = fs.readFileSync(req.file.path);
-//         await PDFDocument.load(pdfBytes);
-//         const doc = new Document({
-//             sections: [
-//                 {
-//                     children: [
-//                         new Paragraph(
-//                             "PDF loaded successfully.\n\nReal PDF to Word conversion requires LibreOffice or another dedicated converter."
-//                         ),
-//                     ],
-//                 },
-//             ],
-//         });
+        outputPath =
+            path.join(uploadDir, outputName);
 
-//         const buffer = await Packer.toBuffer(doc);
-//         const docName = `${Date.now()}.docx`;
-//         const docPath = path.join("uploads", docName);
-//         fs.writeFileSync(docPath, buffer);
-//         fs.unlinkSync(req.file.path);
-//         return res.download(docPath, docName, (err) => {
-//             if (!err && fs.existsSync(docPath)) {
-//                 fs.unlinkSync(docPath);
-//             }
-//         });
-//     } catch (err) {
-//         console.log(err);
-
-//         res.status(500).json({
-//             success: false,
-//             message: err.message,
-//         });
-//     }
-// };
-
-export const pdfToWord = async (req,res)=>{
-
-    try{
-
-        const input =
-            fs.readFileSync(req.file.path);
-
-        const docx =
-            await convert(
-                input,
-                ".docx",
-                undefined
-            );
-
-        const output =
+        const pythonScript =
             path.join(
-                "converted",
-                Date.now()+".docx"
+                process.cwd(),
+                "python",
+                "pdf_to_word.py"
             );
 
-        fs.writeFileSync(
-            output,
-            docx
+        console.log("PDF:", req.file.path);
+
+        console.log("DOCX:", outputPath);
+
+        const python =
+            spawn("py", ["-3",
+                pythonScript,
+                req.file.path,
+                outputPath
+            ]);
+
+        let stdout = "";
+        let stderr = "";
+
+        python.stdout.on("data", (data) => {
+
+            stdout += data.toString();
+
+            console.log(
+                "Python:",
+                data.toString()
+            );
+
+        });
+
+        python.stderr.on("data", (data) => {
+
+            stderr += data.toString();
+
+            console.error(
+                "Python Error:",
+                data.toString()
+            );
+
+        });
+
+        python.on("close", (code) => {
+
+            console.log(
+                "Python exited:",
+                code
+            );
+
+            if (code !== 0) {
+
+                if (
+                    req.file?.path &&
+                    fs.existsSync(req.file.path)
+                ) {
+                    fs.unlinkSync(req.file.path);
+                }
+
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        "PDF to Word conversion failed",
+                    error: stderr
+                });
+
+            }
+
+            if (!fs.existsSync(outputPath)) {
+
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        "DOCX file was not created"
+                });
+
+            }
+
+            // Delete uploaded PDF
+            if (
+                req.file?.path &&
+                fs.existsSync(req.file.path)
+            ) {
+
+                fs.unlinkSync(req.file.path);
+
+            }
+
+            // Send DOCX
+            return res.download(
+                outputPath,
+                outputName,
+                (err) => {
+
+                    if (err) {
+
+                        console.error(
+                            "Download error:",
+                            err
+                        );
+
+                    }
+
+                    if (
+                        outputPath &&
+                        fs.existsSync(outputPath)
+                    ) {
+
+                        fs.unlinkSync(
+                            outputPath
+                        );
+
+                    }
+
+                }
+            );
+
+        });
+
+    } catch (error) {
+
+        console.error(
+            "PDF TO WORD ERROR:",
+            error
         );
 
-        fs.unlinkSync(req.file.path);
+        if (
+            req.file?.path &&
+            fs.existsSync(req.file.path)
+        ) {
 
-        res.download(output);
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch {}
 
-    }
+        }
 
-    catch(err){
+        if (
+            outputPath &&
+            fs.existsSync(outputPath)
+        ) {
 
-        console.log(err);
+            try {
+                fs.unlinkSync(outputPath);
+            } catch {}
 
-        res.status(500).json({
-            success:false,
-            message:err.message
+        }
+
+        return res.status(500).json({
+
+            success: false,
+
+            message:
+                "PDF to Word conversion failed",
+
+            error:
+                error.message
+
         });
 
     }
 
-}
+};

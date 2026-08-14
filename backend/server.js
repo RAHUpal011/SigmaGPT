@@ -7,19 +7,22 @@ import authRoutes from "./routes/authRoutes.js";
 import uploadRoutes from "./routes/upload.js";
 import imageRoutes from "./routes/image.js";
 import convertRoutes from "./routes/convert.js";
-
+import threadRouter from "./routes/thread.js";
+import chatRouter from "./routes/chat.js"
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 
 app.use(express.json());
 app.use(cors());
-
+app.use("/api", threadRouter);
+app.use("/api", chatRouter);
 app.use("/api/auth", authRoutes);
 app.use("/api" , chatRoutes);
 app.use("/api/upload",uploadRoutes);
 app.use("/api/convert", convertRoutes);
 app.use("/api/image", imageRoutes);
 app.use("/uploads", express.static("uploads"));
+app.use("/api/thread", threadRouter);
 
 app.listen(PORT, ()=>{
     console.log(`server running on ${PORT}`);

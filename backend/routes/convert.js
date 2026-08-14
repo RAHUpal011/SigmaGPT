@@ -1,5 +1,5 @@
 import express from "express";
-import upload from "../middleware/upload.js";
+import multer from "multer";
 
 import {
     imageToJpg,
@@ -9,22 +9,30 @@ import {
 
 const router = express.Router();
 
+const upload = multer({
+    dest: "uploads/"
+});
+
+
 router.post(
     "/image-to-jpg",
-    upload.single("image"),
+    upload.single("file"),
     imageToJpg
 );
 
+
 router.post(
     "/word-to-pdf",
-    upload.single("word"),
+    upload.single("file"),
     wordToPdf
 );
 
+
 router.post(
     "/pdf-to-word",
-    upload.single("pdf"),
+    upload.single("file"),
     pdfToWord
 );
+
 
 export default router;

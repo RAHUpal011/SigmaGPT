@@ -45,47 +45,26 @@ export const uploadFiles = async (req, res) => {
             uploadedFiles.push({
 
                 originalName: file.originalname,
-
                 fileName: file.filename,
-
                 mimeType: file.mimetype,
-
                 size: file.size,
-
                 url: result.secure_url,
-
                 public_id: result.public_id
-
             });
-
             fs.unlinkSync(file.path);
-
         }
-
         res.status(200).json({
-
             success: true,
-
             files: uploadedFiles
-
         });
-
     }
-
     catch (error) {
-
         console.log(error);
-
         res.status(500).json({
-
             success: false,
-
             message: error.message
-
         });
-
     }
-
 };
 
 
@@ -96,75 +75,40 @@ export const uploadFiles = async (req, res) => {
 // ===========================================
 
 export const uploadSingleFile = async (req, res) => {
-
     try {
-
         if (!req.file) {
-
             return res.status(400).json({
-
                 success: false,
-
                 message: "No file uploaded"
-
             });
-
         }
-
         const result = await cloudinary.uploader.upload(
-
             req.file.path,
-
             {
-
                 resource_type: "auto",
-
                 folder: "SigmaGPT"
-
             }
-
-        );
-
+        )
         fs.unlinkSync(req.file.path);
-
         res.status(200).json({
-
             success: true,
-
             file: {
-
                 originalName: req.file.originalname,
-
                 fileName: req.file.filename,
-
                 mimeType: req.file.mimetype,
-
                 size: req.file.size,
-
                 url: result.secure_url,
-
                 public_id: result.public_id
-
             }
-
         });
-
     }
-
     catch (error) {
-
         console.log(error);
-
         res.status(500).json({
-
             success: false,
-
             message: error.message
-
         });
-
     }
-
 };
 
 
