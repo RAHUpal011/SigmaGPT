@@ -10,6 +10,7 @@ import { FiGlobe } from "react-icons/fi";
 
 
 const API_URL = import.meta.env.VITE_API_URL;
+
 function ChatWindow() {
     const {
         prompt,
@@ -188,7 +189,7 @@ function ChatWindow() {
             console.log("IMAGE -> JPG:", file);
 
             const response = await fetch(
-                "http://localhost:8080/api/convert/image-to-jpg",
+                `${API_URL}/api/convert/image-to-jpg`,
                 {
                     method: "POST",
                     body: formData
