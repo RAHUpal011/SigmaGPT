@@ -515,10 +515,7 @@ export const pdfToWord = async (req, res) => {
 
     } catch (error) {
 
-        console.error(
-            "PDF TO WORD ERROR:",
-            error
-        );
+        console.error("PDF TO WORD ERROR:", error);
 
         if (
             req.file?.path &&
