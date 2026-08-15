@@ -8,6 +8,8 @@ import { FaPaperclip } from "react-icons/fa";
 import { BiImageAdd } from "react-icons/bi";
 import { FiGlobe } from "react-icons/fi";
 
+
+const API_URL = import.meta.env.VITE_API_URL;
 function ChatWindow() {
     const {
         prompt,
@@ -119,7 +121,7 @@ function ChatWindow() {
 
         try {
             const response = await fetch(
-                "http://localhost:8080/api/image/generate",
+                `${API_URL}/api/image/generate`,
                 {
                     method: "POST",
                     headers: {
@@ -265,7 +267,7 @@ function ChatWindow() {
             console.log("Size:", file.size);
 
             const response = await fetch(
-                "http://localhost:8080/api/convert/word-to-pdf",
+                `${API_URL}/api/convert/word-to-pdf`,
                 {
                     method: "POST",
                     body: formData
@@ -342,7 +344,7 @@ function ChatWindow() {
             console.log("Size:", file.size);
 
             const response = await fetch(
-                "http://localhost:8080/api/convert/pdf-to-word",
+                `${API_URL}/api/convert/pdf-to-word`,
                 {
                     method: "POST",
                     body: formData
@@ -479,7 +481,7 @@ function ChatWindow() {
         setNewChat(false);
         try {
             const response = await fetch(
-                `${import.meta.env.VITE_API_URL}/api/chat`,
+                `$${API_URL}/api/chat`,
                 {
                     method: "POST",
                     headers: {

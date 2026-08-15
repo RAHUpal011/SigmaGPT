@@ -23,7 +23,7 @@ function Signup() {
         e.preventDefault();
         try {
             await axios.post(
-                "http://localhost:8080/api/auth/signup",
+                "${API_URL}/api/auth/signup",
                 formData
             );
             alert("Signup Successful");
