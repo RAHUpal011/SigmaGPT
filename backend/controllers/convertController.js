@@ -172,7 +172,6 @@ export const wordToPdf = async (req, res) => {
 );
 
         console.log("LibreOffice stdout:", result.stdout);
-
         console.log("LibreOffice stderr:", result.stderr);
 
         // 8. Find generated PDF
@@ -340,18 +339,11 @@ export const pdfToWord = async (req, res) => {
         console.log("DOCX:", outputPath);
 
         const pythonCommand = process.platform === "win32" ? "py": "python3";
-
-            const pythonArgs = process.platform === "win32"? ["-3",pythonScript,req.file.path,outputPath]
-                    : [
-                        pythonScript,
-                        req.file.path,
-                        outputPath
-                    ];
-
-            const python = spawn(
-                pythonCommand,
-                pythonArgs
-            );
+        const pythonArgs = process.platform === "win32"? ["-3",pythonScript,req.file.path,outputPath]: [ pythonScript, req.file.path, outputPath ];
+            
+        console.log("Python command:", pythonCommand);
+        console.log("Python args:", pythonArgs);
+        const python = spawn(pythonCommand,pythonArgs );
 
         let stdout = "";
         let stderr = "";
@@ -404,7 +396,6 @@ export const pdfToWord = async (req, res) => {
             }
 
             if (!fs.existsSync(outputPath)) {
-
                 return res.status(500).json({
                     success: false,
                     message:"DOCX file was not created"
@@ -429,34 +420,18 @@ export const pdfToWord = async (req, res) => {
                 (err) => {
 
                     if (err) {
-
-                        console.error(
-                            "Download error:",
-                            err
-                        );
-
+                        console.error("Download error:",err );
                     }
-
-                    if (
-                        outputPath &&
-                        fs.existsSync(outputPath)
-                    ) {
-
-                        fs.unlinkSync(
-                            outputPath
-                        );
-
+                    if (outputPath && fs.existsSync(outputPath)) {
+                        fs.unlinkSync(outputPath);
                     }
-
                 }
             );
-
         });
 
     } catch (error) {
 
         console.error("PDF TO WORD ERROR:", error);
-
         if (
             req.file?.path &&
             fs.existsSync(req.file.path)
@@ -480,17 +455,9 @@ export const pdfToWord = async (req, res) => {
         }
 
         return res.status(500).json({
-
             success: false,
-
-            message:
-                "PDF to Word conversion failed",
-
-            error:
-                error.message
-
+            message: "PDF to Word conversion failed",
+            error: error.message
         });
-
     }
-
 };
