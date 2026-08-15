@@ -10,17 +10,9 @@ import { spawn } from "child_process";
 const require = createRequire(import.meta.url);
 
 import sharp from "sharp";
-// import libre from "libreoffice-convert";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 
-
 const execFileAsync = promisify(execFile);
-
-/*
-==================================================
-CREATE UPLOAD DIRECTORY
-==================================================
-*/
 
 const uploadDir = path.resolve(process.cwd(), "uploads");
 
@@ -30,12 +22,11 @@ if (!fs.existsSync(uploadDir)) {
     });
 }
 
-
 const sofficePath =
-    "C:\\Program Files\\LibreOffice\\program\\soffice.exe";
-
-
-
+    process.env.LIBREOFFICE_PATH ||
+    (process.platform === "win32"
+        ? "C:\\Program Files\\LibreOffice\\program\\soffice.exe"
+        : "soffice");
 
 export const imageToJpg = async (req, res) => {
     let outputPath = null;
@@ -115,13 +106,16 @@ export const wordToPdf = async (req, res) => {
 
         // 2. Check LibreOffice
 
-        if (!fs.existsSync(sofficePath)) {
+       try {
+            await execFileAsync(sofficePath, ["--version"]);
+        } catch (error) {
+            console.error("LibreOffice check failed:", error);
 
             return res.status(500).json({
                 success: false,
-                message: `LibreOffice not found at ${sofficePath}`
+                message: "LibreOffice is not installed or not available",
+                error: error.message
             });
-
         }
 
         // 3. Check extension
@@ -133,46 +127,24 @@ export const wordToPdf = async (req, res) => {
         ) {
 
             return res.status(400).json({
-
                 success: false,
-
                 message: "Only .doc and .docx files are supported"
-
             });
-
         }
 
         // 4. Create temporary directory
 
-        tempDir = fs.mkdtempSync(
-
-            path.join(
-                os.tmpdir(),
-                "sigmagpt-"
-            )
-
-        );
+        tempDir = fs.mkdtempSync(path.join( os.tmpdir(),"sigmagpt-"));
 
         // 5. Give file correct extension
 
-        const inputPath =
-            path.join(
-                tempDir,
-                `input${extension}`
-            );
+        const inputPath = path.join(tempDir,`input${extension}`);
 
-        fs.copyFileSync(
-            req.file.path,
-            inputPath
-        );
+        fs.copyFileSync(req.file.path, inputPath);
 
         // 6. Output directory
 
-        const outputDir =
-            path.join(
-                tempDir,
-                "output"
-            );
+        const outputDir =path.join(tempDir,"output");
 
         fs.mkdirSync(
             outputDir,
@@ -181,47 +153,27 @@ export const wordToPdf = async (req, res) => {
             }
         );
 
-        console.log(
-            "Input:",
-            inputPath
-        );
+        console.log("Input:", inputPath);
 
-        console.log(
-            "Output:",
-            outputDir
-        );
+        console.log("Output:", outputDir);
 
         // 7. Run LibreOffice
 
-        const result =
-            await execFileAsync(
+  const result = await execFileAsync(
+    sofficePath,
+    [
+        "--headless",
+        "--convert-to",
+        "pdf",
+        "--outdir",
+        outputDir,
+        inputPath
+    ]
+);
 
-                sofficePath,
+        console.log("LibreOffice stdout:", result.stdout);
 
-                [
-                    "--headless",
-                    "--convert-to",
-                    "pdf",
-                    "--outdir",
-                    outputDir,
-                    inputPath
-                ],
-
-                {
-                    windowsHide: true
-                }
-
-            );
-
-        console.log(
-            "LibreOffice stdout:",
-            result.stdout
-        );
-
-        console.log(
-            "LibreOffice stderr:",
-            result.stderr
-        );
+        console.log("LibreOffice stderr:", result.stderr);
 
         // 8. Find generated PDF
 
@@ -276,58 +228,39 @@ export const wordToPdf = async (req, res) => {
             outputName,
 
             (err) => {
-
                 if (err) {
-
                     console.error(
                         "DOWNLOAD ERROR:",
                         err
                     );
-
                 }
-
                 if (
                     finalPath &&
                     fs.existsSync(finalPath)
                 ) {
-
                     fs.unlinkSync(
                         finalPath
                     );
-
                 }
-
             }
-
         );
-
     } catch (err) {
-
         console.error(
             "WORD TO PDF ERROR:",
             err
         );
-
         if (
             req.file?.path &&
             fs.existsSync(req.file.path)
         ) {
-
             try {
                 fs.unlinkSync(req.file.path);
             } catch {}
-
         }
-
         return res.status(500).json({
-
             success: false,
-
-            message:
-                "Word to PDF conversion failed",
-
-            error:
-                err.message
+            message:"Word to PDF conversion failed",
+            error: err.message
 
         });
 
@@ -406,12 +339,19 @@ export const pdfToWord = async (req, res) => {
 
         console.log("DOCX:", outputPath);
 
-        const python =
-            spawn("py", ["-3",
-                pythonScript,
-                req.file.path,
-                outputPath
-            ]);
+        const pythonCommand = process.platform === "win32" ? "py": "python3";
+
+            const pythonArgs = process.platform === "win32"? ["-3",pythonScript,req.file.path,outputPath]
+                    : [
+                        pythonScript,
+                        req.file.path,
+                        outputPath
+                    ];
+
+            const python = spawn(
+                pythonCommand,
+                pythonArgs
+            );
 
         let stdout = "";
         let stderr = "";
