@@ -1,28 +1,58 @@
-FROM node:20-bookworm
+FROM node:22-bookworm
 
-# Install LibreOffice
+# ----------------------------------------
+# Install system dependencies
+# ----------------------------------------
+
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libreoffice && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y \
+    python3 \
+    python3-pip \
+    libreoffice \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# ----------------------------------------
+# Application directory
+# ----------------------------------------
+
 WORKDIR /app
 
+# ----------------------------------------
 # Copy backend package files
+# ----------------------------------------
+
 COPY backend/package*.json ./backend/
 
-# Install backend dependencies
 WORKDIR /app/backend
+
+# ----------------------------------------
+# Install Node dependencies
+# ----------------------------------------
+
 RUN npm install
 
-# Copy backend source
-COPY backend ./ 
+# ----------------------------------------
+# Install Python dependencies
+# ----------------------------------------
 
+RUN pip3 install --break-system-packages pdf2docx
+
+# ----------------------------------------
+# Copy backend source
+# ----------------------------------------
+
+COPY backend ./
+
+# ----------------------------------------
 # Create uploads directory
+# ----------------------------------------
+
 RUN mkdir -p uploads
 
-# Expose backend port
+# ----------------------------------------
+# Start server
+# ----------------------------------------
+
 EXPOSE 8080
 
-# Start server
 CMD ["node", "server.js"]
