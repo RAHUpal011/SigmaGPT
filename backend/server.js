@@ -13,7 +13,13 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: [
+        "http://localhost:5173",
+        "https://sigma-gpt-ochre.vercel.app/"
+    ],
+    credentials: true
+}));
 app.use("/api", threadRouter);
 app.use("/api", chatRouter);
 app.use("/api/auth", authRoutes);
