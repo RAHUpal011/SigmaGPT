@@ -26,7 +26,7 @@ function Login() {
         try {
 
             const response = await axios.post(
-                "${API_URL}/api/auth/login",
+                `${API_URL}/api/auth/login`,
                 formData
             );
 
@@ -66,15 +66,7 @@ function Login() {
                     />
                     <button className="btn">LOGIN</button>
                 </form>
-                <p>
-
-                    Don't have an account?
-
-                    <Link to="/signup">
-                        Sign Up
-                    </Link>
-
-                </p>
+                <p>Don't have an account?<Link to="/signup">Sign Up</Link></p>
 
             </div>
 

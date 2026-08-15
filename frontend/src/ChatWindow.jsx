@@ -167,27 +167,20 @@ function ChatWindow() {
     */
 
     const convertImageToJpg = async () => {
-
         if (selectedFiles.length === 0) {
             alert("Please select an image first");
             return;
         }
-
         const file = selectedFiles[0];
-
         if (!file.type.startsWith("image/")) {
             alert("Please select an image file");
             return;
         }
 
         try {
-
             const formData = new FormData();
-
             formData.append("file", file);
-
             console.log("IMAGE -> JPG:", file);
-
             const response = await fetch(
                 `${API_URL}/api/convert/image-to-jpg`,
                 {
@@ -209,17 +202,11 @@ function ChatWindow() {
 
                 throw new Error(message);
             }
-
             const blob = await response.blob();
-
             downloadBlob(blob, "image.jpg");
-
             alert("Image converted successfully!");
-
         } catch (err) {
-
             console.error("IMAGE TO JPG ERROR:", err);
-
             alert(err.message);
         }
     };
@@ -238,7 +225,6 @@ function ChatWindow() {
         }
 
         const file = selectedFiles[0];
-
         const validWord =
             file.name.toLowerCase().endsWith(".doc") ||
             file.name.toLowerCase().endsWith(".docx");

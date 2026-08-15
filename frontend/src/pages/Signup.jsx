@@ -23,7 +23,7 @@ function Signup() {
         e.preventDefault();
         try {
             await axios.post(
-                "${API_URL}/api/auth/signup",
+                `${API_URL}/api/auth/signup`,
                 formData
             );
             alert("Signup Successful");
@@ -37,12 +37,7 @@ function Signup() {
             <div className="signupCard">
                 <h1>Create Account</h1>
                 <form onSubmit={handleSubmit}>
-                    <input
-                        type="text"
-                        name="name"
-                        placeholder="Name"
-                        onChange={handleChange}
-                    />
+                    <input type="text" name="name"  placeholder="Name" onChange={handleChange}/>
                     <input
                         type="email"
                         name="email"
