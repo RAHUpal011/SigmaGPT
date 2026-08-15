@@ -95,7 +95,6 @@ export const wordToPdf = async (req, res) => {
     let finalPath = null;
 
     try {
-
         console.log("========== WORD TO PDF ==========");
 
         console.log(
@@ -119,23 +118,15 @@ export const wordToPdf = async (req, res) => {
         if (!fs.existsSync(sofficePath)) {
 
             return res.status(500).json({
-
                 success: false,
-
-                message:
-                    `LibreOffice not found at ${sofficePath}`
-
+                message: `LibreOffice not found at ${sofficePath}`
             });
 
         }
 
         // 3. Check extension
 
-        const extension =
-            path.extname(
-                req.file.originalname
-            ).toLowerCase();
-
+        const extension = path.extname(req.file.originalname).toLowerCase();
         if (
             extension !== ".docx" &&
             extension !== ".doc"
@@ -145,8 +136,7 @@ export const wordToPdf = async (req, res) => {
 
                 success: false,
 
-                message:
-                    "Only .doc and .docx files are supported"
+                message: "Only .doc and .docx files are supported"
 
             });
 
@@ -477,8 +467,7 @@ export const pdfToWord = async (req, res) => {
 
                 return res.status(500).json({
                     success: false,
-                    message:
-                        "DOCX file was not created"
+                    message:"DOCX file was not created"
                 });
 
             }
