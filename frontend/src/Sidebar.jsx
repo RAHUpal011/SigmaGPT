@@ -2,6 +2,7 @@ import "./Sidebar.css";
 import { useContext, useEffect } from "react";
 import { MyContext } from "./MyContext.jsx";
 import {v1 as uuidv1} from "uuid";
+import blackLogo from "./assets/blacklogo.png";
 
 const API_URL = import.meta.env.VITE_API_URL;
 function Sidebar() {
@@ -76,7 +77,7 @@ function Sidebar() {
     return (
         <section className="sidebar">
             <button onClick={createNewChat}>
-                <img src="src/assets/blacklogo.png" alt="gpt logo" className="logo"></img>
+                <img src={blackLogo} alt="SigmaGPT logo"className="logo"/>
                 <span><i className="fa-solid fa-pen-to-square"></i></span>
             </button>
 
