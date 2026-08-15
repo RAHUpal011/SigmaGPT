@@ -11,6 +11,7 @@ def convert_pdf_to_word(pdf_path, docx_path):
 
     try:
         converter.convert(docx_path)
+
         print("CONVERSION_SUCCESS")
 
     finally:
@@ -20,11 +21,9 @@ def convert_pdf_to_word(pdf_path, docx_path):
 if __name__ == "__main__":
 
     if len(sys.argv) != 3:
-
         print(
             "Usage: python pdf_to_word.py input.pdf output.docx"
         )
-
         sys.exit(1)
 
     pdf_path = sys.argv[1]

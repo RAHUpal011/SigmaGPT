@@ -4,7 +4,9 @@
   "scripts": {
     "start": "node server.js"
   },
+
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.6",
     "axios": "^1.19.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.0",
@@ -30,4 +32,6 @@
     "react-router-dom": "^7.18.2",
     "sharp": "^0.35.3"
   }
+
 }
+

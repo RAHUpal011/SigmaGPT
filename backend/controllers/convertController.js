@@ -3,14 +3,17 @@ import path from "path";
 import os from "os";
 import { promisify } from "util";
 import { execFile } from "child_process";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
-import { createRequire } from "module";
 import { spawn } from "child_process";
 
-const require = createRequire(import.meta.url);
-
 import sharp from "sharp";
-import { Document, Packer, Paragraph, TextRun } from "docx";
+import {
+    Document,
+    Packer,
+    Paragraph,
+    TextRun
+} from "docx";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
 
 const execFileAsync = promisify(execFile);
 
@@ -292,12 +295,14 @@ PDF -> WORD
 ==================================================
 */
 export const pdfToWord = async (req, res) => {
-
     let outputPath = null;
 
     try {
-
         console.log("========== PDF TO WORD ==========");
+
+        // ---------------------------------------
+        // 1. Check uploaded file
+        // ---------------------------------------
 
         if (!req.file) {
             return res.status(400).json({
@@ -306,8 +311,17 @@ export const pdfToWord = async (req, res) => {
             });
         }
 
-        const extension =
-            path.extname(req.file.originalname).toLowerCase();
+        console.log("PDF:", req.file.path);
+        console.log("Original name:", req.file.originalname);
+        console.log("Size:", req.file.size);
+
+        // ---------------------------------------
+        // 2. Validate extension
+        // ---------------------------------------
+
+        const extension = path
+            .extname(req.file.originalname)
+            .toLowerCase();
 
         if (extension !== ".pdf") {
 
@@ -321,11 +335,21 @@ export const pdfToWord = async (req, res) => {
             });
         }
 
+        // ---------------------------------------
+        // 3. Generate DOCX output path
+        // ---------------------------------------
+
         const outputName =
             `converted-${Date.now()}.docx`;
 
         outputPath =
             path.join(uploadDir, outputName);
+
+        console.log("DOCX:", outputPath);
+
+        // ---------------------------------------
+        // 4. Python converter path
+        // ---------------------------------------
 
         const pythonScript =
             path.join(
@@ -334,130 +358,240 @@ export const pdfToWord = async (req, res) => {
                 "pdf_to_word.py"
             );
 
-        console.log("PDF:", req.file.path);
+        console.log(
+            "Python script:",
+            pythonScript
+        );
 
-        console.log("DOCX:", outputPath);
+        if (!fs.existsSync(pythonScript)) {
 
-        const pythonCommand = process.platform === "win32" ? "py": "python3";
-        const pythonArgs = process.platform === "win32"? ["-3",pythonScript,req.file.path,outputPath]: [ pythonScript, req.file.path, outputPath ];
-            
-        console.log("Python command:", pythonCommand);
-        console.log("Python args:", pythonArgs);
-        const python = spawn(pythonCommand,pythonArgs );
+            throw new Error(
+                `Python converter not found: ${pythonScript}`
+            );
+        }
+
+        // ---------------------------------------
+        // 5. Run Python
+        // ---------------------------------------
+
+        const pythonCommand =
+            process.platform === "win32"
+                ? "py"
+                : "python3";
+
+        console.log(
+            "Python command:",
+            pythonCommand
+        );
+
+        const python =
+            spawn(
+                pythonCommand,
+                [
+                    pythonScript,
+                    req.file.path,
+                    outputPath
+                ],
+                {
+                    cwd: process.cwd()
+                }
+            );
 
         let stdout = "";
         let stderr = "";
 
-        python.stdout.on("data", (data) => {
+        python.stdout.on(
+            "data",
+            (data) => {
 
-            stdout += data.toString();
+                const text =
+                    data.toString();
 
-            console.log(
-                "Python:",
-                data.toString()
-            );
+                stdout += text;
 
-        });
+                console.log(
+                    "Python:",
+                    text
+                );
+            }
+        );
 
-        python.stderr.on("data", (data) => {
+        python.stderr.on(
+            "data",
+            (data) => {
 
-            stderr += data.toString();
+                const text =
+                    data.toString();
+
+                stderr += text;
+
+                console.error(
+                    "Python Error:",
+                    text
+                );
+            }
+        );
+
+        // ---------------------------------------
+        // 6. Wait for Python
+        // ---------------------------------------
+
+        const exitCode =
+            await new Promise((resolve) => {
+
+                python.on(
+                    "close",
+                    resolve
+                );
+
+                python.on(
+                    "error",
+                    (error) => {
+
+                        stderr +=
+                            error.message;
+
+                        resolve(-1);
+                    }
+                );
+
+            });
+
+        console.log(
+            "Python exited:",
+            exitCode
+        );
+
+        // ---------------------------------------
+        // 7. Check Python result
+        // ---------------------------------------
+
+        if (exitCode !== 0) {
 
             console.error(
-                "Python Error:",
-                data.toString()
+                "PDF TO WORD PYTHON ERROR:",
+                stderr
             );
 
-        });
-
-        python.on("close", (code) => {
-
-            console.log(
-                "Python exited:",
-                code
+            throw new Error(
+                stderr ||
+                "PDF to Word conversion failed"
             );
+        }
 
-            if (code !== 0) {
+        // ---------------------------------------
+        // 8. Check DOCX exists
+        // ---------------------------------------
+
+        if (!fs.existsSync(outputPath)) {
+
+            throw new Error(
+                "DOCX file was not created"
+            );
+        }
+
+        console.log(
+            "DOCX successfully created:",
+            outputPath
+        );
+
+        // ---------------------------------------
+        // 9. Delete uploaded PDF
+        // ---------------------------------------
+
+        if (
+            req.file.path &&
+            fs.existsSync(req.file.path)
+        ) {
+
+            fs.unlinkSync(
+                req.file.path
+            );
+        }
+
+        // ---------------------------------------
+        // 10. Download DOCX
+        // ---------------------------------------
+
+        return res.download(
+            outputPath,
+            outputName,
+            (err) => {
+
+                if (err) {
+
+                    console.error(
+                        "DOWNLOAD ERROR:",
+                        err
+                    );
+                }
 
                 if (
-                    req.file?.path &&
-                    fs.existsSync(req.file.path)
+                    outputPath &&
+                    fs.existsSync(outputPath)
                 ) {
-                    fs.unlinkSync(req.file.path);
-                }
 
-                return res.status(500).json({
-                    success: false,
-                    message:
-                        "PDF to Word conversion failed",
-                    error: stderr
-                });
+                    try {
 
-            }
+                        fs.unlinkSync(
+                            outputPath
+                        );
 
-            if (!fs.existsSync(outputPath)) {
-                return res.status(500).json({
-                    success: false,
-                    message:"DOCX file was not created"
-                });
+                    } catch (cleanupError) {
 
-            }
+                        console.error(
+                            "OUTPUT CLEANUP ERROR:",
+                            cleanupError
+                        );
 
-            // Delete uploaded PDF
-            if (
-                req.file?.path &&
-                fs.existsSync(req.file.path)
-            ) {
-
-                fs.unlinkSync(req.file.path);
-
-            }
-
-            // Send DOCX
-            return res.download(
-                outputPath,
-                outputName,
-                (err) => {
-
-                    if (err) {
-                        console.error("Download error:",err );
-                    }
-                    if (outputPath && fs.existsSync(outputPath)) {
-                        fs.unlinkSync(outputPath);
                     }
                 }
-            );
-        });
+            }
+        );
 
     } catch (error) {
 
-        console.error("PDF TO WORD ERROR:", error);
+        console.error(
+            "PDF TO WORD ERROR:",
+            error
+        );
+
+        // Delete uploaded PDF
         if (
             req.file?.path &&
             fs.existsSync(req.file.path)
         ) {
 
             try {
-                fs.unlinkSync(req.file.path);
-            } catch {}
 
+                fs.unlinkSync(
+                    req.file.path
+                );
+
+            } catch {}
         }
 
+        // Delete output DOCX
         if (
             outputPath &&
             fs.existsSync(outputPath)
         ) {
 
             try {
-                fs.unlinkSync(outputPath);
-            } catch {}
 
+                fs.unlinkSync(
+                    outputPath
+                );
+
+            } catch {}
         }
 
         return res.status(500).json({
             success: false,
-            message: "PDF to Word conversion failed",
-            error: error.message
+            message:
+                "PDF to Word conversion failed",
+            error:
+                error.message
         });
     }
 };
