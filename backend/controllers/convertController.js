@@ -5,17 +5,11 @@ import { promisify } from "util";
 import { execFile } from "child_process";
 import { spawn } from "child_process";
 
-import sharp from "sharp";
-import {
-    Document,
-    Packer,
-    Paragraph,
-    TextRun
-} from "docx";
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-
 const execFileAsync = promisify(execFile);
+
+// ==================================================
+// UPLOAD DIRECTORY
+// ==================================================
 
 const uploadDir = path.resolve(process.cwd(), "uploads");
 
@@ -25,63 +19,108 @@ if (!fs.existsSync(uploadDir)) {
     });
 }
 
+// ==================================================
+// LIBREOFFICE PATH
+// ==================================================
+
 const sofficePath =
     process.env.LIBREOFFICE_PATH ||
-    (process.platform === "win32"
-        ? "C:\\Program Files\\LibreOffice\\program\\soffice.exe"
-        : "soffice");
+    (
+        process.platform === "win32"
+            ? "C:\\Program Files\\LibreOffice\\program\\soffice.exe"
+            : "soffice"
+    );
+
+// ==================================================
+// HELPER: DELETE FILE SAFELY
+// ==================================================
+
+const deleteFile = (filePath) => {
+
+    if (!filePath) {
+        return;
+    }
+
+    try {
+
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+
+    } catch (error) {
+
+        console.error(
+            "FILE DELETE ERROR:",
+            error.message
+        );
+
+    }
+};
+
+// ==================================================
+// IMAGE -> JPG
+// ==================================================
+
 
 export const imageToJpg = async (req, res) => {
+
     let outputPath = null;
+
     try {
+
+        console.log("========== IMAGE TO JPG ==========");
+
         if (!req.file) {
+
             return res.status(400).json({
                 success: false,
                 message: "No image uploaded"
             });
-        }
-        const inputPath = path.resolve(req.file.path);
-        const outputName =`${Date.now()}.jpg`;
 
-        outputPath = path.join(uploadDir,outputName);
-
-        await sharp(inputPath)
-            .jpeg({
-                quality: 100
-            })
-            .toFile(outputPath);
-        if (fs.existsSync(inputPath)) {
-            fs.unlinkSync(inputPath);
         }
-        return res.download(
-            outputPath,
-            outputName,
-            (err) => {
-                if (
-                    !err &&
-                    fs.existsSync(outputPath)
-                ) {
-                    fs.unlinkSync(outputPath);
-                }
-            }
+
+        console.log("Image:", req.file.path);
+
+        /*
+         * IMPORTANT:
+         *
+         * We intentionally don't use sharp here because
+         * sharp is currently causing your Render server
+         * to crash.
+         *
+         * If you want image conversion, we can add a
+         * separate Linux-compatible image solution later.
+         */
+
+        return res.status(501).json({
+            success: false,
+            message:
+                "Image to JPG conversion is temporarily unavailable on the deployed server."
+        });
+
+    } catch (error) {
+
+        console.error(
+            "IMAGE TO JPG ERROR:",
+            error
         );
-    } catch (err) {
-        console.error("IMAGE TO JPG ERROR:",err);
-        if (
-            outputPath &&
-            fs.existsSync(outputPath)
-        ) {
-            fs.unlinkSync(outputPath);
-        }
+
+        deleteFile(req.file?.path);
+        deleteFile(outputPath);
+
         return res.status(500).json({
             success: false,
-            message: err.message
+            message: "Image conversion failed",
+            error: error.message
         });
+
     }
+
 };
 
-
-
+// ==================================================
+// WORD -> PDF
+// ==================================================
 
 export const wordToPdf = async (req, res) => {
 
@@ -89,14 +128,12 @@ export const wordToPdf = async (req, res) => {
     let finalPath = null;
 
     try {
+
         console.log("========== WORD TO PDF ==========");
 
-        console.log(
-            "Word file:",
-            req.file
-        );
-
-        // 1. Check file
+        // ------------------------------------------
+        // 1. Check uploaded file
+        // ------------------------------------------
 
         if (!req.file) {
 
@@ -107,47 +144,114 @@ export const wordToPdf = async (req, res) => {
 
         }
 
-        // 2. Check LibreOffice
+        console.log("Word file:", req.file);
 
-       try {
-            await execFileAsync(sofficePath, ["--version"]);
-        } catch (error) {
-            console.error("LibreOffice check failed:", error);
+        // ------------------------------------------
+        // 2. Check extension
+        // ------------------------------------------
 
-            return res.status(500).json({
-                success: false,
-                message: "LibreOffice is not installed or not available",
-                error: error.message
-            });
-        }
+        const extension =
+            path
+                .extname(req.file.originalname)
+                .toLowerCase();
 
-        // 3. Check extension
-
-        const extension = path.extname(req.file.originalname).toLowerCase();
         if (
             extension !== ".docx" &&
             extension !== ".doc"
         ) {
 
+            deleteFile(req.file.path);
+
             return res.status(400).json({
                 success: false,
-                message: "Only .doc and .docx files are supported"
+                message:
+                    "Only .doc and .docx files are supported"
             });
+
         }
 
+        // ------------------------------------------
+        // 3. Check LibreOffice
+        // ------------------------------------------
+
+        console.log(
+            "Checking LibreOffice:",
+            sofficePath
+        );
+
+        try {
+
+            const version =
+                await execFileAsync(
+                    sofficePath,
+                    ["--version"]
+                );
+
+            console.log(
+                "LibreOffice:",
+                version.stdout
+            );
+
+        } catch (error) {
+
+            console.error(
+                "LibreOffice check failed:",
+                error
+            );
+
+            deleteFile(req.file.path);
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    "LibreOffice is not installed or not available on the server.",
+                error:
+                    error.message
+            });
+
+        }
+
+        // ------------------------------------------
         // 4. Create temporary directory
+        // ------------------------------------------
 
-        tempDir = fs.mkdtempSync(path.join( os.tmpdir(),"sigmagpt-"));
+        tempDir =
+            fs.mkdtempSync(
+                path.join(
+                    os.tmpdir(),
+                    "sigmagpt-"
+                )
+            );
 
-        // 5. Give file correct extension
+        console.log(
+            "Temp directory:",
+            tempDir
+        );
 
-        const inputPath = path.join(tempDir,`input${extension}`);
+        // ------------------------------------------
+        // 5. Create input file
+        // ------------------------------------------
 
-        fs.copyFileSync(req.file.path, inputPath);
+        const inputPath =
+            path.join(
+                tempDir,
+                `input${extension}`
+            );
 
-        // 6. Output directory
+        fs.copyFileSync(
+            req.file.path,
+            inputPath
+        );
 
-        const outputDir =path.join(tempDir,"output");
+        // ------------------------------------------
+        // 6. Create output directory
+        // ------------------------------------------
+
+        const outputDir =
+            path.join(
+                tempDir,
+                "output"
+            );
 
         fs.mkdirSync(
             outputDir,
@@ -156,28 +260,49 @@ export const wordToPdf = async (req, res) => {
             }
         );
 
-        console.log("Input:", inputPath);
+        console.log(
+            "Input:",
+            inputPath
+        );
 
-        console.log("Output:", outputDir);
+        console.log(
+            "Output:",
+            outputDir
+        );
 
-        // 7. Run LibreOffice
+        // ------------------------------------------
+        // 7. Convert DOCX -> PDF
+        // ------------------------------------------
 
-  const result = await execFileAsync(
-    sofficePath,
-    [
-        "--headless",
-        "--convert-to",
-        "pdf",
-        "--outdir",
-        outputDir,
-        inputPath
-    ]
-);
+        const result =
+            await execFileAsync(
+                sofficePath,
+                [
+                    "--headless",
+                    "--convert-to",
+                    "pdf",
+                    "--outdir",
+                    outputDir,
+                    inputPath
+                ],
+                {
+                    timeout: 120000
+                }
+            );
 
-        console.log("LibreOffice stdout:", result.stdout);
-        console.log("LibreOffice stderr:", result.stderr);
+        console.log(
+            "LibreOffice stdout:",
+            result.stdout
+        );
 
+        console.log(
+            "LibreOffice stderr:",
+            result.stderr
+        );
+
+        // ------------------------------------------
         // 8. Find generated PDF
+        // ------------------------------------------
 
         const pdfPath =
             path.join(
@@ -193,7 +318,9 @@ export const wordToPdf = async (req, res) => {
 
         }
 
-        // 9. Create final file
+        // ------------------------------------------
+        // 9. Create final output
+        // ------------------------------------------
 
         const outputName =
             `converted-${Date.now()}.pdf`;
@@ -209,64 +336,63 @@ export const wordToPdf = async (req, res) => {
             finalPath
         );
 
+        console.log(
+            "PDF created:",
+            finalPath
+        );
+
+        // ------------------------------------------
         // 10. Delete uploaded Word file
+        // ------------------------------------------
 
-        if (
-            fs.existsSync(req.file.path)
-        ) {
+        deleteFile(req.file.path);
 
-            fs.unlinkSync(
-                req.file.path
-            );
-
-        }
-
+        // ------------------------------------------
         // 11. Send PDF
+        // ------------------------------------------
 
         return res.download(
-
             finalPath,
-
             outputName,
-
             (err) => {
+
                 if (err) {
+
                     console.error(
                         "DOWNLOAD ERROR:",
                         err
                     );
+
                 }
-                if (
-                    finalPath &&
-                    fs.existsSync(finalPath)
-                ) {
-                    fs.unlinkSync(
-                        finalPath
-                    );
-                }
+
+                deleteFile(finalPath);
+
             }
         );
-    } catch (err) {
+
+    } catch (error) {
+
         console.error(
             "WORD TO PDF ERROR:",
-            err
+            error
         );
-        if (
-            req.file?.path &&
-            fs.existsSync(req.file.path)
-        ) {
-            try {
-                fs.unlinkSync(req.file.path);
-            } catch {}
-        }
+
+        deleteFile(req.file?.path);
+        deleteFile(finalPath);
+
         return res.status(500).json({
             success: false,
-            message:"Word to PDF conversion failed",
-            error: err.message
-
+            message:
+                "Word to PDF conversion failed",
+            error:
+                error.message
         });
 
     } finally {
+
+        // ------------------------------------------
+        // Cleanup temp directory
+        // ------------------------------------------
 
         if (
             tempDir &&
@@ -283,73 +409,125 @@ export const wordToPdf = async (req, res) => {
                     }
                 );
 
-            } catch {}
+            } catch (error) {
+
+                console.error(
+                    "TEMP CLEANUP ERROR:",
+                    error.message
+                );
+
+            }
 
         }
 
     }
+
 };
-/*
-==================================================
-PDF -> WORD
-==================================================
-*/
+
+// ==================================================
+// PDF -> WORD
+// ==================================================
+//
+// Uses:
+// Python + pdf2docx
+//
+// This preserves PDF layout much better than
+// extracting plain text and creating paragraphs.
+//
+// ==================================================
+
 export const pdfToWord = async (req, res) => {
+
     let outputPath = null;
 
     try {
+
         console.log("========== PDF TO WORD ==========");
 
-        // ---------------------------------------
-        // 1. Check uploaded file
-        // ---------------------------------------
+        // ------------------------------------------
+        // 1. Check uploaded PDF
+        // ------------------------------------------
 
         if (!req.file) {
+
             return res.status(400).json({
                 success: false,
                 message: "No PDF uploaded"
             });
+
         }
 
-        console.log("PDF:", req.file.path);
-        console.log("Original name:", req.file.originalname);
-        console.log("Size:", req.file.size);
+        console.log(
+            "PDF:",
+            req.file.path
+        );
 
-        // ---------------------------------------
-        // 2. Validate extension
-        // ---------------------------------------
+        console.log(
+            "Original name:",
+            req.file.originalname
+        );
 
-        const extension = path
-            .extname(req.file.originalname)
-            .toLowerCase();
+        console.log(
+            "Size:",
+            req.file.size
+        );
+
+        // ------------------------------------------
+        // 2. Check extension
+        // ------------------------------------------
+
+        const extension =
+            path
+                .extname(req.file.originalname)
+                .toLowerCase();
 
         if (extension !== ".pdf") {
 
-            if (fs.existsSync(req.file.path)) {
-                fs.unlinkSync(req.file.path);
-            }
+            deleteFile(req.file.path);
 
             return res.status(400).json({
                 success: false,
-                message: "Only PDF files are allowed"
+                message:
+                    "Only PDF files are allowed"
             });
+
         }
 
-        // ---------------------------------------
-        // 3. Generate DOCX output path
-        // ---------------------------------------
+        // ------------------------------------------
+        // 3. Make absolute PDF path
+        // ------------------------------------------
+
+        const pdfPath =
+            path.resolve(
+                req.file.path
+            );
+
+        // ------------------------------------------
+        // 4. Generate output DOCX path
+        // ------------------------------------------
 
         const outputName =
             `converted-${Date.now()}.docx`;
 
         outputPath =
-            path.join(uploadDir, outputName);
+            path.join(
+                uploadDir,
+                outputName
+            );
 
-        console.log("DOCX:", outputPath);
+        console.log(
+            "PDF absolute path:",
+            pdfPath
+        );
 
-        // ---------------------------------------
-        // 4. Python converter path
-        // ---------------------------------------
+        console.log(
+            "DOCX:",
+            outputPath
+        );
+
+        // ------------------------------------------
+        // 5. Python script
+        // ------------------------------------------
 
         const pythonScript =
             path.join(
@@ -368,37 +546,67 @@ export const pdfToWord = async (req, res) => {
             throw new Error(
                 `Python converter not found: ${pythonScript}`
             );
+
         }
 
-        // ---------------------------------------
-        // 5. Run Python
-        // ---------------------------------------
+        // ------------------------------------------
+        // 6. Select Python command
+        // ------------------------------------------
 
-        const pythonCommand =
-            process.platform === "win32"
-                ? "py"
-                : "python3";
+        let pythonCommand;
+
+        if (process.platform === "win32") {
+
+            // Windows
+            pythonCommand = "py";
+
+        } else {
+
+            // Render/Linux
+            pythonCommand = "python3";
+
+        }
 
         console.log(
             "Python command:",
             pythonCommand
         );
 
+        // ------------------------------------------
+        // 7. Run Python converter
+        // ------------------------------------------
+
+        const pythonArgs = [
+            pythonScript,
+            pdfPath,
+            outputPath
+        ];
+
+        console.log(
+            "Python arguments:",
+            pythonArgs
+        );
+
         const python =
             spawn(
                 pythonCommand,
-                [
-                    pythonScript,
-                    req.file.path,
-                    outputPath
-                ],
+                pythonArgs,
                 {
-                    cwd: process.cwd()
+                    cwd: process.cwd(),
+                    stdio: [
+                        "ignore",
+                        "pipe",
+                        "pipe"
+                    ]
                 }
             );
 
         let stdout = "";
         let stderr = "";
+
+        // ------------------------------------------
+        // Python stdout
+        // ------------------------------------------
 
         python.stdout.on(
             "data",
@@ -411,10 +619,15 @@ export const pdfToWord = async (req, res) => {
 
                 console.log(
                     "Python:",
-                    text
+                    text.trim()
                 );
+
             }
         );
+
+        // ------------------------------------------
+        // Python stderr
+        // ------------------------------------------
 
         python.stderr.on(
             "data",
@@ -427,67 +640,70 @@ export const pdfToWord = async (req, res) => {
 
                 console.error(
                     "Python Error:",
-                    text
+                    text.trim()
                 );
+
             }
         );
 
-        // ---------------------------------------
-        // 6. Wait for Python
-        // ---------------------------------------
+        // ------------------------------------------
+        // Wait for Python
+        // ------------------------------------------
 
         const exitCode =
-            await new Promise((resolve) => {
+            await new Promise(
+                (resolve, reject) => {
 
-                python.on(
-                    "close",
-                    resolve
-                );
+                    python.on(
+                        "close",
+                        (code) => {
 
-                python.on(
-                    "error",
-                    (error) => {
+                            resolve(code);
 
-                        stderr +=
-                            error.message;
+                        }
+                    );
 
-                        resolve(-1);
-                    }
-                );
+                    python.on(
+                        "error",
+                        (error) => {
 
-            });
+                            reject(error);
+
+                        }
+                    );
+
+                }
+            );
 
         console.log(
             "Python exited:",
             exitCode
         );
 
-        // ---------------------------------------
-        // 7. Check Python result
-        // ---------------------------------------
+        // ------------------------------------------
+        // Check Python result
+        // ------------------------------------------
 
         if (exitCode !== 0) {
 
-            console.error(
-                "PDF TO WORD PYTHON ERROR:",
-                stderr
-            );
-
             throw new Error(
                 stderr ||
+                stdout ||
                 "PDF to Word conversion failed"
             );
+
         }
 
-        // ---------------------------------------
-        // 8. Check DOCX exists
-        // ---------------------------------------
+        // ------------------------------------------
+        // Check DOCX
+        // ------------------------------------------
 
         if (!fs.existsSync(outputPath)) {
 
             throw new Error(
-                "DOCX file was not created"
+                "Python completed but DOCX file was not created."
             );
+
         }
 
         console.log(
@@ -495,23 +711,15 @@ export const pdfToWord = async (req, res) => {
             outputPath
         );
 
-        // ---------------------------------------
-        // 9. Delete uploaded PDF
-        // ---------------------------------------
+        // ------------------------------------------
+        // Delete uploaded PDF
+        // ------------------------------------------
 
-        if (
-            req.file.path &&
-            fs.existsSync(req.file.path)
-        ) {
+        deleteFile(req.file.path);
 
-            fs.unlinkSync(
-                req.file.path
-            );
-        }
-
-        // ---------------------------------------
-        // 10. Download DOCX
-        // ---------------------------------------
+        // ------------------------------------------
+        // Download DOCX
+        // ------------------------------------------
 
         return res.download(
             outputPath,
@@ -524,28 +732,11 @@ export const pdfToWord = async (req, res) => {
                         "DOWNLOAD ERROR:",
                         err
                     );
+
                 }
 
-                if (
-                    outputPath &&
-                    fs.existsSync(outputPath)
-                ) {
+                deleteFile(outputPath);
 
-                    try {
-
-                        fs.unlinkSync(
-                            outputPath
-                        );
-
-                    } catch (cleanupError) {
-
-                        console.error(
-                            "OUTPUT CLEANUP ERROR:",
-                            cleanupError
-                        );
-
-                    }
-                }
             }
         );
 
@@ -556,35 +747,8 @@ export const pdfToWord = async (req, res) => {
             error
         );
 
-        // Delete uploaded PDF
-        if (
-            req.file?.path &&
-            fs.existsSync(req.file.path)
-        ) {
-
-            try {
-
-                fs.unlinkSync(
-                    req.file.path
-                );
-
-            } catch {}
-        }
-
-        // Delete output DOCX
-        if (
-            outputPath &&
-            fs.existsSync(outputPath)
-        ) {
-
-            try {
-
-                fs.unlinkSync(
-                    outputPath
-                );
-
-            } catch {}
-        }
+        deleteFile(req.file?.path);
+        deleteFile(outputPath);
 
         return res.status(500).json({
             success: false,
@@ -593,5 +757,7 @@ export const pdfToWord = async (req, res) => {
             error:
                 error.message
         });
+
     }
-};
+
+}; 

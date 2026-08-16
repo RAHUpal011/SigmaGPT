@@ -59,23 +59,13 @@ app.use(
 // Authentication
 app.use("/api/auth", authRoutes);
 
-// Threads
+
 app.use("/api/thread", threadRouter);
 
-// Chat
 app.use("/api/chat", chatRouter);
-
-// If your existing chatRoutes contains routes
-// that expect /api/...
 app.use("/api", chatRoutes);
-
-// Upload
 app.use("/api/upload", uploadRoutes);
-
-// Conversion
 app.use("/api/convert", convertRoutes);
-
-// Image
 app.use("/api/image", imageRoutes);
 
 // Uploaded files
@@ -104,24 +94,21 @@ app.get("/", (req, res) => {
 // ===============================
 
 const connectDB = async () => {
-
     try {
 
-        await mongoose.connect(
-            process.env.MONGODB_URL
-        );
+        if (!process.env.MONGODB_URL) {
+            throw new Error("MONGODB_URL is missing from .env");
+        }
 
-        console.log("connected with DataBase");
+        await mongoose.connect(process.env.MONGODB_URL);
+
+        console.log("MongoDB connected successfully ✅");
 
     } catch (err) {
-
-        console.error(
-            "Failed to connect with Db:",
-            err
-        );
-
+        console.error("MongoDB connection failed ❌");
+        console.error("Error code:", err.code);
+        console.error("Error message:", err.message);
     }
-
 };
 
 
