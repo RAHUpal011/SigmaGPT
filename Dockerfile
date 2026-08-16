@@ -1,8 +1,10 @@
 FROM node:22-bookworm
 
-# ----------------------------------------
-# Install system dependencies
-# ----------------------------------------
+WORKDIR /app
+
+# ==========================================
+# SYSTEM DEPENDENCIES
+# ==========================================
 
 RUN apt-get update && \
     apt-get install -y \
@@ -11,48 +13,52 @@ RUN apt-get update && \
     libreoffice \
     && rm -rf /var/lib/apt/lists/*
 
-# ----------------------------------------
-# Application directory
-# ----------------------------------------
+# ==========================================
+# VERIFY SYSTEM DEPENDENCIES
+# ==========================================
 
-WORKDIR /app
+RUN node --version
+RUN python3 --version
+RUN soffice --version
 
-# ----------------------------------------
-# Copy backend package files
-# ----------------------------------------
+# ==========================================
+# NODE DEPENDENCIES
+# ==========================================
 
 COPY backend/package*.json ./backend/
 
 WORKDIR /app/backend
 
-# ----------------------------------------
-# Install Node dependencies
-# ----------------------------------------
+RUN npm install --include=optional
 
-RUN npm install
-
-# ----------------------------------------
-# Install Python dependencies
-# ----------------------------------------
-
-RUN pip3 install --break-system-packages pdf2docx
-
-# ----------------------------------------
-# Copy backend source
-# ----------------------------------------
+# ==========================================
+# APPLICATION
+# ==========================================
 
 COPY backend ./
 
-# ----------------------------------------
-# Create uploads directory
-# ----------------------------------------
+# ==========================================
+# PYTHON DEPENDENCIES
+# ==========================================
+
+RUN pip3 install --break-system-packages pdf2docx
+
+RUN python3 -c "import pdf2docx; print('pdf2docx OK')"
+
+# ==========================================
+# UPLOAD DIRECTORY
+# ==========================================
 
 RUN mkdir -p uploads
 
-# ----------------------------------------
-# Start server
-# ----------------------------------------
+# ==========================================
+# PORT
+# ==========================================
 
 EXPOSE 8080
+
+# ==========================================
+# START
+# ==========================================
 
 CMD ["node", "server.js"]
